@@ -1,11 +1,13 @@
 "use strict";
 
 // ============================================================================
-// ID BME280 ENVIRONMENT MONITOR
+// ID BME280 ENVIRONMENT MONITOR V8
 //
 // The ESP32 publishes live readings and stores 2,880 one-minute averages in
 // RAM. This page requests that RAM history through MQTT, rebuilds the timeline,
 // and draws temperature, humidity, and pressure graphs in the browser.
+// V8 carries history commands and responses over the already-working telemetry
+// topic, avoiding separate HiveMQ history-topic permissions.
 // ============================================================================
 
 const MQTT_CONFIG = {
@@ -16,16 +18,7 @@ const MQTT_CONFIG = {
     "illsley/bme280/telemetry",
 
   statusTopic:
-    "illsley/bme280/status",
-
-  historyRequestTopic:
-    "illsley/bme280/history/request",
-
-  historyDataTopic:
-    "illsley/bme280/history/data",
-
-  historyCompleteTopic:
-    "illsley/bme280/history/complete"
+    "illsley/bme280/status"
 };
 
 const USERNAME_STORAGE_KEY =
@@ -36,7 +29,7 @@ const HISTORY_WINDOW_MS =
 
 const ESP_HISTORY_CAPACITY = 2880;
 const MAX_DRAW_POINTS = 1400;
-const HISTORY_REQUEST_TIMEOUT_MS = 30000;
+const HISTORY_REQUEST_TIMEOUT_MS = 8000;
 
 let client = null;
 let connectedOnce = false;
@@ -369,9 +362,7 @@ function connectMqtt(username, password) {
 
     const subscriptions = [
       MQTT_CONFIG.telemetryTopic,
-      MQTT_CONFIG.statusTopic,
-      MQTT_CONFIG.historyDataTopic,
-      MQTT_CONFIG.historyCompleteTopic
+      MQTT_CONFIG.statusTopic
     ];
 
     client.subscribe(
@@ -443,33 +434,59 @@ function connectMqtt(username, password) {
 // ============================================================================
 function handleMqttMessage(topic, text) {
   if (topic === MQTT_CONFIG.telemetryTopic) {
-    handleTelemetry(text);
+    handleTelemetryChannel(text);
     return;
   }
 
   if (topic === MQTT_CONFIG.statusTopic) {
     handleDeviceStatus(text);
-    return;
-  }
-
-  if (topic === MQTT_CONFIG.historyDataTopic) {
-    handleHistoryData(text);
-    return;
-  }
-
-  if (topic === MQTT_CONFIG.historyCompleteTopic) {
-    handleHistoryComplete(text);
   }
 }
 
-function handleTelemetry(text) {
-  let data;
+function handleTelemetryChannel(text) {
+  if (text.startsWith("HREQ|")) {
+    // The browser receives its own request because it is subscribed to the
+    // shared telemetry topic. The ESP32 is the only client that acts on it.
+    return;
+  }
+
+  if (text.startsWith("HACK|")) {
+    handleHistoryAck(text);
+    return;
+  }
+
+  if (text.startsWith("HDONE|")) {
+    handleHistoryComplete(text);
+    return;
+  }
+
+  let parsed;
 
   try {
-    data = JSON.parse(text);
+    parsed = JSON.parse(text);
   } catch (error) {
-    console.warn("Invalid telemetry JSON:", text);
+    console.warn("Unrecognised telemetry payload:", text);
     return;
+  }
+
+  if (parsed && parsed.type === "historyPart") {
+    handleHistoryData(parsed);
+    return;
+  }
+
+  handleTelemetry(parsed);
+}
+
+function handleTelemetry(input) {
+  let data = input;
+
+  if (typeof input === "string") {
+    try {
+      data = JSON.parse(input);
+    } catch (error) {
+      console.warn("Invalid telemetry JSON:", input);
+      return;
+    }
   }
 
   const temperature = Number(data.temperature);
@@ -581,14 +598,16 @@ function handleDeviceStatus(text) {
   }
 }
 
-function handleHistoryData(text) {
-  let data;
+function handleHistoryData(input) {
+  let data = input;
 
-  try {
-    data = JSON.parse(text);
-  } catch (error) {
-    console.warn("Invalid history JSON:", text);
-    return;
+  if (typeof input === "string") {
+    try {
+      data = JSON.parse(input);
+    } catch (error) {
+      console.warn("Invalid history JSON:", input);
+      return;
+    }
   }
 
   if (
@@ -633,27 +652,19 @@ function handleHistoryData(text) {
   restartHistoryRequestTimer();
 }
 
-function handleHistoryComplete(text) {
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch (error) {
-    console.warn(
-      "Invalid history-complete JSON:",
-      text
-    );
-    return;
-  }
+function handleHistoryAck(text) {
+  const fields = text.split("|");
 
   if (
+    fields.length < 4 ||
     !historyLoading ||
-    data.requestId !== historyRequestId
+    fields[1] !== historyRequestId
   ) {
     return;
   }
 
-  const recordCount = Number(data.records);
+  const recordCount = Number(fields[2]);
+  const totalParts = Number(fields[3]);
 
   if (Number.isFinite(recordCount)) {
     reportedHistoryRecords = Math.max(
@@ -663,6 +674,47 @@ function handleHistoryComplete(text) {
         ESP_HISTORY_CAPACITY
       )
     );
+  }
+
+  if (Number.isInteger(totalParts) && totalParts >= 0) {
+    expectedHistoryParts = totalParts;
+  }
+
+  updateHistorySummary();
+
+  setHistoryStatus(
+    `ESP32 received request — sending ${reportedHistoryRecords.toLocaleString()} RAM records`
+  );
+
+  restartHistoryRequestTimer();
+}
+
+function handleHistoryComplete(text) {
+  const fields = text.split("|");
+
+  if (
+    fields.length < 4 ||
+    !historyLoading ||
+    fields[1] !== historyRequestId
+  ) {
+    return;
+  }
+
+  const recordCount = Number(fields[2]);
+  const totalParts = Number(fields[3]);
+
+  if (Number.isFinite(recordCount)) {
+    reportedHistoryRecords = Math.max(
+      0,
+      Math.min(
+        Math.round(recordCount),
+        ESP_HISTORY_CAPACITY
+      )
+    );
+  }
+
+  if (Number.isInteger(totalParts) && totalParts >= 0) {
+    expectedHistoryParts = totalParts;
   }
 
   finishHistoryLoad(false);
@@ -702,14 +754,14 @@ function requestRamHistory() {
   elements.reloadHistory.disabled = true;
 
   setHistoryStatus(
-    "Requesting history from ESP32 RAM…"
+    "Sending RAM history request on the live telemetry channel…"
   );
 
   client.publish(
-    MQTT_CONFIG.historyRequestTopic,
-    historyRequestId,
+    MQTT_CONFIG.telemetryTopic,
+    `HREQ|${historyRequestId}`,
     {
-      qos: 0,
+      qos: 1,
       retain: false
     },
     error => {
@@ -717,7 +769,7 @@ function requestRamHistory() {
         historyLoading = false;
         elements.reloadHistory.disabled = false;
         setHistoryStatus(
-          "History request could not be sent"
+          "History request could not be delivered to HiveMQ"
         );
         console.error(error);
         return;
@@ -828,16 +880,23 @@ function finishHistoryLoad(timedOut) {
       );
     } else {
       setHistoryStatus(
-        "No RAM history received. The ESP32 may have just restarted."
+        "No reply from ESP32. Check that V8 firmware is uploaded and MQTT shows connected."
       );
     }
   } else if (reportedHistoryRecords === 0) {
     setHistoryStatus(
       "ESP32 RAM history is empty — the first average appears after one minute"
     );
+  } else if (
+    expectedHistoryParts > 0 &&
+    receivedHistoryParts.size < expectedHistoryParts
+  ) {
+    setHistoryStatus(
+      `History incomplete — received ${receivedHistoryParts.size} of ${expectedHistoryParts} parts`
+    );
   } else {
     setHistoryStatus(
-      `RAM history loaded — ${reportedHistoryRecords.toLocaleString()} one-minute records`
+      `RAM history loaded — ${ramPoints.length.toLocaleString()} one-minute records`
     );
   }
 

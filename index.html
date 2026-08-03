@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#071321">
-  <title>Illsley Designs Environment Monitor</title>
+  <title>Illsley Designs Environment Monitor V8</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
         <div class="brand-mark" aria-hidden="true">ID</div>
         <div>
           <p class="brand-kicker">ILLSLEY DESIGNS</p>
-          <h1>Environment Monitor</h1>
+          <h1>Environment Monitor V8</h1>
         </div>
       </div>
 
@@ -227,11 +227,13 @@
       <p>
         The ESP32 stores up to 48 hours of one-minute averages in RAM. Resetting
         it, removing power, or uploading firmware clears the stored history.
+        V8 sends history through the same MQTT telemetry topic as the live data,
+        so no separate HiveMQ history-topic permission is required.
       </p>
     </section>
 
     <footer>
-      Live BME280 readings from the ESP32-C3 Super Mini through HiveMQ.
+      Live BME280 readings and RAM history from the ESP32-C3 Super Mini through HiveMQ.
     </footer>
   </main>
 
