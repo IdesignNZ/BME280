@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#071321">
-  <title>Illsley Designs Environment Monitor V9</title>
-  <link rel="stylesheet" href="style.css?v=9">
+  <title>Illsley Designs Environment Monitor V10</title>
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
   <main class="page-shell">
@@ -14,7 +14,7 @@
         <div class="brand-mark" aria-hidden="true">ID</div>
         <div>
           <p class="brand-kicker">ILLSLEY DESIGNS</p>
-          <h1>Environment Monitor V9</h1>
+          <h1>Environment Monitor V10</h1>
         </div>
       </div>
       <div id="overallStatus" class="status-pill offline">Not connected</div>
@@ -106,7 +106,7 @@
       <div>
         <p class="eyebrow">CURRENT MEASUREMENTS</p>
         <h2>Live rolling graphs</h2>
-        <p class="section-description">The last 10 minutes roll continuously and update every BME280 reading.</p>
+        <p id="liveGraphDescription" class="section-description">On connection, the last 10 minutes of RAM history are loaded first. New 2-second measurements then continue the rolling view.</p>
       </div>
       <div class="mini-status"><span id="livePointCount">0</span> live points</div>
     </section>
@@ -114,7 +114,7 @@
     <section class="chart-stack live-chart-stack">
       <article class="chart-card card">
         <div class="chart-heading">
-          <div><h2>Live temperature</h2><p>Rolling 10-minute view — no compression or zoom</p></div>
+          <div><h2>Live temperature</h2><p>Last 10 minutes — seeded from RAM history, then live 2-second samples</p></div>
           <div class="chart-latest">Current<strong><span id="liveTempLatest">--.-</span> °C</strong></div>
         </div>
         <div class="chart-frame"><canvas id="liveTemperatureChart" aria-label="Live rolling temperature graph"></canvas></div>
@@ -122,7 +122,7 @@
 
       <article class="chart-card card">
         <div class="chart-heading">
-          <div><h2>Live humidity</h2><p>Rolling 10-minute view — no compression or zoom</p></div>
+          <div><h2>Live humidity</h2><p>Last 10 minutes — seeded from RAM history, then live 2-second samples</p></div>
           <div class="chart-latest">Current<strong><span id="liveHumidityLatest">--.-</span> %</strong></div>
         </div>
         <div class="chart-frame"><canvas id="liveHumidityChart" aria-label="Live rolling humidity graph"></canvas></div>
@@ -130,7 +130,7 @@
 
       <article class="chart-card card">
         <div class="chart-heading">
-          <div><h2>Live pressure</h2><p>Rolling 10-minute view with 0.1 hPa resolution</p></div>
+          <div><h2>Live pressure</h2><p>Last 10 minutes — history seed plus live 0.1 hPa measurements</p></div>
           <div class="chart-latest">Current<strong><span id="livePressureLatest">----.-</span> hPa</strong></div>
         </div>
         <div class="chart-frame"><canvas id="livePressureChart" aria-label="Live rolling air pressure graph"></canvas></div>
@@ -227,7 +227,7 @@
       <article class="detail-card card">
         <p class="eyebrow">DATA</p>
         <div class="detail-row"><span>Last live update</span><strong id="lastUpdate">Waiting for data</strong></div>
-        <div class="detail-row"><span>Live update interval</span><strong id="liveInterval">About 2 seconds</strong></div>
+        <div class="detail-row"><span>Live transmission</span><strong id="liveInterval">5 samples every 10 seconds</strong></div>
         <div class="detail-row"><span>History storage</span><strong>ESP32 RAM only</strong></div>
       </article>
     </section>
@@ -237,14 +237,14 @@
       <p>
         The ESP32 stores up to 48 hours of one-minute averages in RAM. Resetting it,
         removing power, or uploading firmware clears the stored history. Hover or tap
-        a graph to inspect an exact point. History zoom applies only to the stored graphs.
+        a graph to inspect an exact point. The live graphs are initially seeded from the last 10 minutes of RAM history. History zoom applies only to the stored graphs.
       </p>
     </section>
 
-    <footer>Live BME280 readings and RAM history from the ESP32-C3 Super Mini through HiveMQ.</footer>
+    <footer>Energy-saving batched BME280 readings and RAM history from the ESP32-C3 Super Mini through HiveMQ.</footer>
   </main>
 
   <script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
-  <script src="script.js?v=9"></script>
+  <script src="script.js?v=10"></script>
 </body>
 </html>

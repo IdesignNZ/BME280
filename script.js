@@ -10,7 +10,7 @@ const USERNAME_STORAGE_KEY = "illsley-bme280-mqtt-username";
 const HISTORY_WINDOW_MS = 48 * 60 * 60 * 1000;
 const LIVE_WINDOW_MS = 10 * 60 * 1000;
 const ESP_HISTORY_CAPACITY = 2880;
-const HISTORY_REQUEST_TIMEOUT_MS = 10000;
+const HISTORY_REQUEST_TIMEOUT_MS = 20000;
 const MAX_HISTORY_DRAW_POINTS = 1400;
 
 let client = null;
@@ -75,7 +75,8 @@ const elements = {
   rssi: document.getElementById("rssi"),
   uptime: document.getElementById("uptime"),
   lastUpdate: document.getElementById("lastUpdate"),
-  liveInterval: document.getElementById("liveInterval")
+  liveInterval: document.getElementById("liveInterval"),
+  liveGraphDescription: document.getElementById("liveGraphDescription")
 };
 
 const charts = {
@@ -299,9 +300,105 @@ function handleMqttMessage(topic, text) {
     handleHistoryData(parsed);
   } else if (parsed && parsed.type === "historyRecord") {
     handleNewHistoryRecord(parsed);
+  } else if (parsed && parsed.type === "liveBatch") {
+    handleLiveBatch(parsed);
   } else {
+    // Backward compatibility with V9 single-reading telemetry.
     handleLiveTelemetry(parsed);
   }
+}
+
+function updateLiveDisplay(data, latestPoint, sampleCount) {
+  if (!latestPoint) return;
+
+  elements.temperature.textContent = latestPoint.temperature.toFixed(1);
+  elements.humidity.textContent = latestPoint.humidity.toFixed(1);
+  elements.pressure.textContent = latestPoint.pressure.toFixed(1);
+  elements.liveTempLatest.textContent = latestPoint.temperature.toFixed(1);
+  elements.liveHumidityLatest.textContent = latestPoint.humidity.toFixed(1);
+  elements.livePressureLatest.textContent = latestPoint.pressure.toFixed(1);
+
+  const rssi = Number(data.rssi);
+  elements.rssi.textContent = Number.isFinite(rssi) ? `${Math.round(rssi)} dBm` : "-- dBm";
+  elements.uptime.textContent = formatUptime(Number(data.uptime));
+  elements.lastUpdate.textContent = new Date(latestPoint.time).toLocaleString();
+  elements.sensorStatus.textContent = "Online";
+  elements.sensorStatus.style.color = "var(--green)";
+
+  const intervalMs = Number(data.sensorIntervalMs);
+  const batchIntervalMs = Number(data.batchIntervalMs);
+  const batchSize = Number(data.batchSize);
+
+  if (Number.isFinite(batchIntervalMs) && batchIntervalMs > 0) {
+    const size = Number.isFinite(batchSize) && batchSize > 0
+      ? Math.round(batchSize)
+      : sampleCount;
+    const spacing = Number.isFinite(intervalMs) && intervalMs > 0
+      ? `, ${(intervalMs / 1000).toFixed(intervalMs % 1000 ? 1 : 0)} s spacing`
+      : "";
+    elements.liveInterval.textContent =
+      `${size} samples every ${(batchIntervalMs / 1000).toFixed(0)} seconds${spacing}`;
+  } else if (Number.isFinite(intervalMs) && intervalMs > 0) {
+    elements.liveInterval.textContent =
+      `${(intervalMs / 1000).toFixed(intervalMs % 1000 ? 1 : 0)} seconds`;
+  }
+
+  updateReportedHistory(data.historyRecords, data.historyCapacity);
+}
+
+function handleLiveBatch(data) {
+  const receivedAt = Date.now();
+  const samples = Array.isArray(data.samples) ? data.samples : [];
+  const batchPoints = [];
+
+  for (const sample of samples) {
+    if (!Array.isArray(sample) || sample.length < 4) continue;
+
+    const ageMilliseconds = Number(sample[0]);
+    const temperatureX100 = Number(sample[1]);
+    const humidityX100 = Number(sample[2]);
+    const pressureX10 = Number(sample[3]);
+
+    if (![ageMilliseconds, temperatureX100, humidityX100, pressureX10].every(Number.isFinite)) {
+      continue;
+    }
+
+    batchPoints.push({
+      time: receivedAt - Math.max(0, Math.min(ageMilliseconds, 60000)),
+      temperature: temperatureX100 / 100,
+      humidity: humidityX100 / 100,
+      pressure: pressureX10 / 10,
+      source: "live"
+    });
+  }
+
+  // Fall back to the top-level current values if a partial/legacy batch has no array.
+  if (batchPoints.length === 0) {
+    const temperature = Number(data.temperature);
+    const humidity = Number(data.humidity);
+    const pressure = Number(data.pressure);
+
+    if ([temperature, humidity, pressure].every(Number.isFinite)) {
+      batchPoints.push({
+        time: receivedAt,
+        temperature,
+        humidity,
+        pressure,
+        source: "live"
+      });
+    }
+  }
+
+  if (batchPoints.length === 0) return;
+
+  livePoints = deduplicateLivePoints([...livePoints, ...batchPoints]);
+  const latest = batchPoints.reduce((newest, point) =>
+    !newest || point.time > newest.time ? point : newest, null);
+
+  updateLiveDisplay(data, latest, batchPoints.length);
+  elements.liveGraphDescription.textContent =
+    "The rolling graphs contain the last 10 minutes. RAM history fills the earlier section, then each 10-second MQTT batch adds five 2-second measurements.";
+  renderLive();
 }
 
 function handleLiveTelemetry(data) {
@@ -310,30 +407,16 @@ function handleLiveTelemetry(data) {
   const pressure = Number(data.pressure);
   if (![temperature, humidity, pressure].every(Number.isFinite)) return;
 
-  const now = Date.now();
-  elements.temperature.textContent = temperature.toFixed(1);
-  elements.humidity.textContent = humidity.toFixed(1);
-  elements.pressure.textContent = pressure.toFixed(1);
-  elements.liveTempLatest.textContent = temperature.toFixed(1);
-  elements.liveHumidityLatest.textContent = humidity.toFixed(1);
-  elements.livePressureLatest.textContent = pressure.toFixed(1);
+  const point = {
+    time: Date.now(),
+    temperature,
+    humidity,
+    pressure,
+    source: "live"
+  };
 
-  const rssi = Number(data.rssi);
-  elements.rssi.textContent = Number.isFinite(rssi) ? `${Math.round(rssi)} dBm` : "-- dBm";
-  elements.uptime.textContent = formatUptime(Number(data.uptime));
-  elements.lastUpdate.textContent = new Date(now).toLocaleString();
-  elements.sensorStatus.textContent = "Online";
-  elements.sensorStatus.style.color = "var(--green)";
-
-  const intervalMs = Number(data.sensorIntervalMs);
-  if (Number.isFinite(intervalMs) && intervalMs > 0) {
-    elements.liveInterval.textContent = `${(intervalMs / 1000).toFixed(intervalMs % 1000 ? 1 : 0)} seconds`;
-  }
-
-  updateReportedHistory(data.historyRecords, data.historyCapacity);
-
-  livePoints.push({ time: now, temperature, humidity, pressure });
-  livePoints = livePoints.filter(point => point.time >= now - LIVE_WINDOW_MS - 5000);
+  livePoints = deduplicateLivePoints([...livePoints, point]);
+  updateLiveDisplay(data, point, 1);
   renderLive();
 }
 
@@ -479,12 +562,13 @@ function finishHistoryLoad(timedOut) {
   historyLoading = false;
   elements.reloadHistory.disabled = !(client && client.connected);
   renderHistory();
+  seedLiveFromHistory();
   updateHistorySummary();
 
   if (timedOut) {
     setHistoryStatus(ramPoints.length > 0
       ? `History timed out — showing ${ramPoints.length.toLocaleString()} received records`
-      : "No history reply from the ESP32. Confirm that V9 firmware is uploaded and MQTT is connected.");
+      : "No history reply from the ESP32. Confirm that V10 firmware is uploaded and MQTT is connected.");
   } else if (reportedHistoryRecords === 0) {
     setHistoryStatus("ESP32 RAM history is empty — the first average appears after one minute");
   } else if (expectedHistoryParts > 0 && receivedHistoryParts.size < expectedHistoryParts) {
@@ -543,6 +627,42 @@ function deduplicateHistory(points) {
     result.push(point);
   }
   return result;
+}
+
+function deduplicateLivePoints(points) {
+  const earliest = Date.now() - LIVE_WINDOW_MS - 5000;
+  const sorted = points
+    .filter(point => point && Number.isFinite(point.time) && point.time >= earliest &&
+      Number.isFinite(point.temperature) && Number.isFinite(point.humidity) && Number.isFinite(point.pressure))
+    .sort((a, b) => a.time - b.time);
+
+  const byHalfSecond = new Map();
+  for (const point of sorted) {
+    // Live data is added after history seeds, so it replaces a near-identical seed point.
+    const key = Math.round(point.time / 500);
+    byHalfSecond.set(key, point);
+  }
+
+  return [...byHalfSecond.values()].sort((a, b) => a.time - b.time);
+}
+
+function seedLiveFromHistory() {
+  const cutoff = Date.now() - LIVE_WINDOW_MS;
+  const seed = historyPoints
+    .filter(point => point.time >= cutoff)
+    .map(point => ({ ...point, source: "history" }));
+
+  livePoints = deduplicateLivePoints([...seed, ...livePoints]);
+
+  if (seed.length > 0) {
+    elements.liveGraphDescription.textContent =
+      `Loaded ${seed.length} one-minute RAM history points into the rolling graphs. New five-sample MQTT batches continue from there.`;
+  } else {
+    elements.liveGraphDescription.textContent =
+      "No recent RAM history was available. The rolling graphs will fill from new five-sample MQTT batches.";
+  }
+
+  renderLive();
 }
 
 function numberRange(values, minimumSpan) {
@@ -803,7 +923,7 @@ function setMinMax(points, key, minimumElement, maximumElement, decimals) {
 
 function renderLive() {
   const now = Date.now();
-  livePoints = livePoints.filter(point => point.time >= now - LIVE_WINDOW_MS - 5000);
+  livePoints = deduplicateLivePoints(livePoints);
   elements.livePointCount.textContent = livePoints.length.toLocaleString();
   const latest = livePoints[livePoints.length - 1];
   if (latest) {
