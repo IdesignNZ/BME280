@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#081527">
-  <title>ID BME280 Monitor</title>
+  <meta name="theme-color" content="#071321">
+  <title>Illsley Designs Environment Monitor</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,42 +13,75 @@
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">ID</div>
         <div>
-          <div class="brand-name">ILLSLEY DESIGNS</div>
-          <h1>BME280 Environment Monitor</h1>
+          <p class="brand-kicker">ILLSLEY DESIGNS</p>
+          <h1>Environment Monitor</h1>
         </div>
       </div>
-      <div id="overallStatus" class="status-pill offline">Disconnected</div>
+
+      <div id="overallStatus" class="status-pill offline">Not connected</div>
     </header>
 
-    <section class="connection-panel card">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">MQTT CONNECTION</p>
-          <h2>Connect to HiveMQ</h2>
+    <section id="loginPanel" class="login-panel card">
+      <form id="mqttLoginForm" class="login-form" autocomplete="on">
+        <div class="login-heading">
+          <div>
+            <p class="eyebrow">HIVEMQ LOGIN</p>
+            <h2>Connect to the BME280 monitor</h2>
+          </div>
         </div>
-        <button id="connectButton" class="primary-button" type="button">Connect</button>
-      </div>
 
-      <div class="form-grid">
-        <label>
-          Broker
-          <input id="broker" type="text"
-                 value="e1fe53e3c20b4f3daf38aafa8e16ff4b.s1.eu.hivemq.cloud">
+        <div class="login-fields">
+          <label class="field-label">
+            MQTT username
+            <input
+              id="mqttUsername"
+              name="username"
+              type="text"
+              value="bme280"
+              autocomplete="username"
+              autocapitalize="none"
+              spellcheck="false"
+              required>
+          </label>
+
+          <label class="field-label">
+            MQTT password
+            <input
+              id="mqttPassword"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required>
+          </label>
+        </div>
+
+        <label class="remember-row">
+          <input id="rememberUsername" type="checkbox" checked>
+          <span>Remember the username on this device</span>
         </label>
-        <label>
-          Username
-          <input id="username" type="text" autocomplete="username"
-                 placeholder="HiveMQ username">
-        </label>
-        <label>
-          Password
-          <input id="password" type="password" autocomplete="current-password"
-                 placeholder="HiveMQ password">
-        </label>
+
+        <p class="login-help">
+          The webpage remembers only the username. The password is not written
+          into the GitHub files or browser storage.
+        </p>
+
+        <p id="loginError" class="login-error" role="alert" hidden></p>
+
+        <button id="connectButton" class="primary-button" type="submit">
+          Connect
+        </button>
+      </form>
+
+      <div id="connectedPanel" class="connected-panel" hidden>
+        <div>
+          <p class="eyebrow">HIVEMQ CONNECTED</p>
+          <strong id="connectedUsername">—</strong>
+        </div>
+
+        <button id="changeLoginButton" class="action-button" type="button">
+          Change login
+        </button>
       </div>
-      <p class="help-text">
-        Credentials are used only by this browser session and are not stored in the GitHub files.
-      </p>
     </section>
 
     <section class="reading-grid" aria-live="polite">
@@ -58,6 +91,10 @@
           <span id="temperature" class="reading-value">--.-</span>
           <span class="reading-unit">°C</span>
         </div>
+        <div class="reading-stats">
+          <span>48 h min <strong id="tempMin">--.-</strong></span>
+          <span>48 h max <strong id="tempMax">--.-</strong></span>
+        </div>
       </article>
 
       <article class="reading-card card humidity">
@@ -65,6 +102,10 @@
         <div class="reading-line">
           <span id="humidity" class="reading-value">--.-</span>
           <span class="reading-unit">%</span>
+        </div>
+        <div class="reading-stats">
+          <span>48 h min <strong id="humidityMin">--.-</strong></span>
+          <span>48 h max <strong id="humidityMax">--.-</strong></span>
         </div>
       </article>
 
@@ -74,11 +115,81 @@
           <span id="pressure" class="reading-value">----</span>
           <span class="reading-unit">hPa</span>
         </div>
+        <div class="reading-stats">
+          <span>48 h min <strong id="pressureMin">----</strong></span>
+          <span>48 h max <strong id="pressureMax">----</strong></span>
+        </div>
+      </article>
+    </section>
+
+    <section class="history-banner card">
+      <div>
+        <p class="eyebrow">ESP32 RAM HISTORY</p>
+        <strong id="historyLoadStatus">Waiting for MQTT</strong>
+      </div>
+
+      <div class="history-progress">
+        <span id="historyRecordCount">0 / 2,880 records</span>
+        <span id="historyTimeSpan">0 min stored</span>
+      </div>
+
+      <button id="reloadHistory" class="action-button" type="button" disabled>
+        Reload history
+      </button>
+    </section>
+
+    <section class="chart-stack">
+      <article class="chart-card card">
+        <div class="chart-heading">
+          <div>
+            <h2>Temperature — up to 48 hours</h2>
+            <p>One-minute averages stored in ESP32 RAM</p>
+          </div>
+          <div class="chart-latest">
+            Latest
+            <strong><span id="tempChartLatest">--.-</span> °C</strong>
+          </div>
+        </div>
+        <div class="chart-frame">
+          <canvas id="temperatureChart" aria-label="Temperature history graph"></canvas>
+        </div>
+      </article>
+
+      <article class="chart-card card">
+        <div class="chart-heading">
+          <div>
+            <h2>Humidity — up to 48 hours</h2>
+            <p>One-minute averages stored in ESP32 RAM</p>
+          </div>
+          <div class="chart-latest">
+            Latest
+            <strong><span id="humidityChartLatest">--.-</span> %</strong>
+          </div>
+        </div>
+        <div class="chart-frame">
+          <canvas id="humidityChart" aria-label="Humidity history graph"></canvas>
+        </div>
+      </article>
+
+      <article class="chart-card card">
+        <div class="chart-heading">
+          <div>
+            <h2>Pressure — up to 48 hours</h2>
+            <p>One-minute averages stored in ESP32 RAM</p>
+          </div>
+          <div class="chart-latest">
+            Latest
+            <strong><span id="pressureChartLatest">----</span> hPa</strong>
+          </div>
+        </div>
+        <div class="chart-frame">
+          <canvas id="pressureChart" aria-label="Air pressure history graph"></canvas>
+        </div>
       </article>
     </section>
 
     <section class="details-grid">
-      <article class="card detail-card">
+      <article class="detail-card card">
         <p class="eyebrow">DEVICE</p>
         <div class="detail-row">
           <span>Sensor status</span>
@@ -94,29 +205,37 @@
         </div>
       </article>
 
-      <article class="card detail-card">
-        <p class="eyebrow">LATEST DATA</p>
+      <article class="detail-card card">
+        <p class="eyebrow">DATA</p>
         <div class="detail-row">
-          <span>Last update</span>
+          <span>Last live update</span>
           <strong id="lastUpdate">Waiting for data</strong>
         </div>
         <div class="detail-row">
-          <span>Telemetry topic</span>
-          <code>illsley/bme280/telemetry</code>
+          <span>Points shown</span>
+          <strong id="pointCount">0</strong>
         </div>
         <div class="detail-row">
-          <span>Status topic</span>
-          <code>illsley/bme280/status</code>
+          <span>History storage</span>
+          <strong>ESP32 RAM only</strong>
         </div>
       </article>
     </section>
 
+    <section class="ram-note card">
+      <strong>RAM history notice</strong>
+      <p>
+        The ESP32 stores up to 48 hours of one-minute averages in RAM. Resetting
+        it, removing power, or uploading firmware clears the stored history.
+      </p>
+    </section>
+
     <footer>
-      Live readings from the ESP32-C3 Super Mini via HiveMQ.
+      Live BME280 readings from the ESP32-C3 Super Mini through HiveMQ.
     </footer>
   </main>
 
-  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
