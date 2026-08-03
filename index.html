@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#081527">
+  <title>ID BME280 Monitor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="page-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">ID</div>
+        <div>
+          <div class="brand-name">ILLSLEY DESIGNS</div>
+          <h1>BME280 Environment Monitor</h1>
+        </div>
+      </div>
+      <div id="overallStatus" class="status-pill offline">Disconnected</div>
+    </header>
+
+    <section class="connection-panel card">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MQTT CONNECTION</p>
+          <h2>Connect to HiveMQ</h2>
+        </div>
+        <button id="connectButton" class="primary-button" type="button">Connect</button>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          Broker
+          <input id="broker" type="text"
+                 value="e1fe53e3c20b4f3daf38aafa8e16ff4b.s1.eu.hivemq.cloud">
+        </label>
+        <label>
+          Username
+          <input id="username" type="text" autocomplete="username"
+                 placeholder="HiveMQ username">
+        </label>
+        <label>
+          Password
+          <input id="password" type="password" autocomplete="current-password"
+                 placeholder="HiveMQ password">
+        </label>
+      </div>
+      <p class="help-text">
+        Credentials are used only by this browser session and are not stored in the GitHub files.
+      </p>
+    </section>
+
+    <section class="reading-grid" aria-live="polite">
+      <article class="reading-card card temperature">
+        <p class="reading-label">Temperature</p>
+        <div class="reading-line">
+          <span id="temperature" class="reading-value">--.-</span>
+          <span class="reading-unit">°C</span>
+        </div>
+      </article>
+
+      <article class="reading-card card humidity">
+        <p class="reading-label">Humidity</p>
+        <div class="reading-line">
+          <span id="humidity" class="reading-value">--.-</span>
+          <span class="reading-unit">%</span>
+        </div>
+      </article>
+
+      <article class="reading-card card pressure">
+        <p class="reading-label">Air pressure</p>
+        <div class="reading-line">
+          <span id="pressure" class="reading-value">----</span>
+          <span class="reading-unit">hPa</span>
+        </div>
+      </article>
+    </section>
+
+    <section class="details-grid">
+      <article class="card detail-card">
+        <p class="eyebrow">DEVICE</p>
+        <div class="detail-row">
+          <span>Sensor status</span>
+          <strong id="sensorStatus">Unknown</strong>
+        </div>
+        <div class="detail-row">
+          <span>Wi-Fi signal</span>
+          <strong id="rssi">-- dBm</strong>
+        </div>
+        <div class="detail-row">
+          <span>Device uptime</span>
+          <strong id="uptime">--</strong>
+        </div>
+      </article>
+
+      <article class="card detail-card">
+        <p class="eyebrow">LATEST DATA</p>
+        <div class="detail-row">
+          <span>Last update</span>
+          <strong id="lastUpdate">Waiting for data</strong>
+        </div>
+        <div class="detail-row">
+          <span>Telemetry topic</span>
+          <code>illsley/bme280/telemetry</code>
+        </div>
+        <div class="detail-row">
+          <span>Status topic</span>
+          <code>illsley/bme280/status</code>
+        </div>
+      </article>
+    </section>
+
+    <footer>
+      Live readings from the ESP32-C3 Super Mini via HiveMQ.
+    </footer>
+  </main>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
