@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#071321">
-  <title>Illsley Designs Environment Monitor V8</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Illsley Designs Environment Monitor V9</title>
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
   <main class="page-shell">
@@ -14,10 +14,9 @@
         <div class="brand-mark" aria-hidden="true">ID</div>
         <div>
           <p class="brand-kicker">ILLSLEY DESIGNS</p>
-          <h1>Environment Monitor V8</h1>
+          <h1>Environment Monitor V9</h1>
         </div>
       </div>
-
       <div id="overallStatus" class="status-pill offline">Not connected</div>
     </header>
 
@@ -33,25 +32,13 @@
         <div class="login-fields">
           <label class="field-label">
             MQTT username
-            <input
-              id="mqttUsername"
-              name="username"
-              type="text"
-              value="bme280"
-              autocomplete="username"
-              autocapitalize="none"
-              spellcheck="false"
-              required>
+            <input id="mqttUsername" name="username" type="text" value="bme280"
+              autocomplete="username" autocapitalize="none" spellcheck="false" required>
           </label>
-
           <label class="field-label">
             MQTT password
-            <input
-              id="mqttPassword"
-              name="password"
-              type="password"
-              autocomplete="current-password"
-              required>
+            <input id="mqttPassword" name="password" type="password"
+              autocomplete="current-password" required>
           </label>
         </div>
 
@@ -64,12 +51,8 @@
           The webpage remembers only the username. The password is not written
           into the GitHub files or browser storage.
         </p>
-
         <p id="loginError" class="login-error" role="alert" hidden></p>
-
-        <button id="connectButton" class="primary-button" type="submit">
-          Connect
-        </button>
+        <button id="connectButton" class="primary-button" type="submit">Connect</button>
       </form>
 
       <div id="connectedPanel" class="connected-panel" hidden>
@@ -77,10 +60,7 @@
           <p class="eyebrow">HIVEMQ CONNECTED</p>
           <strong id="connectedUsername">—</strong>
         </div>
-
-        <button id="changeLoginButton" class="action-button" type="button">
-          Change login
-        </button>
+        <button id="changeLoginButton" class="action-button" type="button">Change login</button>
       </div>
     </section>
 
@@ -112,13 +92,48 @@
       <article class="reading-card card pressure">
         <p class="reading-label">Air pressure</p>
         <div class="reading-line">
-          <span id="pressure" class="reading-value">----</span>
+          <span id="pressure" class="reading-value">----.-</span>
           <span class="reading-unit">hPa</span>
         </div>
         <div class="reading-stats">
-          <span>48 h min <strong id="pressureMin">----</strong></span>
-          <span>48 h max <strong id="pressureMax">----</strong></span>
+          <span>48 h min <strong id="pressureMin">----.-</strong></span>
+          <span>48 h max <strong id="pressureMax">----.-</strong></span>
         </div>
+      </article>
+    </section>
+
+    <section class="section-title-row">
+      <div>
+        <p class="eyebrow">CURRENT MEASUREMENTS</p>
+        <h2>Live rolling graphs</h2>
+        <p class="section-description">The last 10 minutes roll continuously and update every BME280 reading.</p>
+      </div>
+      <div class="mini-status"><span id="livePointCount">0</span> live points</div>
+    </section>
+
+    <section class="chart-stack live-chart-stack">
+      <article class="chart-card card">
+        <div class="chart-heading">
+          <div><h2>Live temperature</h2><p>Rolling 10-minute view — no compression or zoom</p></div>
+          <div class="chart-latest">Current<strong><span id="liveTempLatest">--.-</span> °C</strong></div>
+        </div>
+        <div class="chart-frame"><canvas id="liveTemperatureChart" aria-label="Live rolling temperature graph"></canvas></div>
+      </article>
+
+      <article class="chart-card card">
+        <div class="chart-heading">
+          <div><h2>Live humidity</h2><p>Rolling 10-minute view — no compression or zoom</p></div>
+          <div class="chart-latest">Current<strong><span id="liveHumidityLatest">--.-</span> %</strong></div>
+        </div>
+        <div class="chart-frame"><canvas id="liveHumidityChart" aria-label="Live rolling humidity graph"></canvas></div>
+      </article>
+
+      <article class="chart-card card">
+        <div class="chart-heading">
+          <div><h2>Live pressure</h2><p>Rolling 10-minute view with 0.1 hPa resolution</p></div>
+          <div class="chart-latest">Current<strong><span id="livePressureLatest">----.-</span> hPa</strong></div>
+        </div>
+        <div class="chart-frame"><canvas id="livePressureChart" aria-label="Live rolling air pressure graph"></canvas></div>
       </article>
     </section>
 
@@ -127,117 +142,109 @@
         <p class="eyebrow">ESP32 RAM HISTORY</p>
         <strong id="historyLoadStatus">Waiting for MQTT</strong>
       </div>
-
       <div class="history-progress">
         <span id="historyRecordCount">0 / 2,880 records</span>
         <span id="historyTimeSpan">0 min stored</span>
       </div>
-
-      <button id="reloadHistory" class="action-button" type="button" disabled>
-        Reload history
-      </button>
+      <button id="reloadHistory" class="action-button" type="button" disabled>Reload history</button>
     </section>
 
-    <section class="chart-stack">
+    <section class="history-controls card">
+      <div class="history-control-heading">
+        <div>
+          <p class="eyebrow">HISTORY ANALYSIS</p>
+          <h2>Compressed history with zoom and position</h2>
+          <p id="historyViewRange" class="section-description">Full stored history</p>
+        </div>
+        <button id="resetHistoryZoom" class="action-button" type="button">Full history</button>
+      </div>
+
+      <div class="zoom-control-grid">
+        <label class="field-label">
+          Zoom window
+          <select id="historyZoomSelect">
+            <option value="0">Full stored history</option>
+            <option value="86400000">24 hours</option>
+            <option value="43200000">12 hours</option>
+            <option value="21600000">6 hours</option>
+            <option value="10800000">3 hours</option>
+            <option value="3600000">1 hour</option>
+            <option value="1800000">30 minutes</option>
+          </select>
+        </label>
+
+        <label class="position-control">
+          <span>Position in stored history</span>
+          <input id="historyPosition" type="range" min="0" max="1000" value="1000" disabled>
+          <span class="range-labels"><span>Oldest</span><span>Newest</span></span>
+        </label>
+      </div>
+    </section>
+
+    <section class="section-title-row history-title-row">
+      <div>
+        <p class="eyebrow">ONE-MINUTE AVERAGES</p>
+        <h2>RAM history graphs</h2>
+        <p class="section-description">Full history is compressed to fit. New averages are added every minute.</p>
+      </div>
+      <div class="mini-status"><span id="historyPointCount">0</span> history points</div>
+    </section>
+
+    <section class="chart-stack history-chart-stack">
       <article class="chart-card card">
         <div class="chart-heading">
-          <div>
-            <h2>Temperature — up to 48 hours</h2>
-            <p>One-minute averages stored in ESP32 RAM</p>
-          </div>
-          <div class="chart-latest">
-            Latest
-            <strong><span id="tempChartLatest">--.-</span> °C</strong>
-          </div>
+          <div><h2>Temperature history</h2><p>One-minute averages stored in ESP32 RAM</p></div>
+          <div class="chart-latest">Latest average<strong><span id="historyTempLatest">--.-</span> °C</strong></div>
         </div>
-        <div class="chart-frame">
-          <canvas id="temperatureChart" aria-label="Temperature history graph"></canvas>
-        </div>
+        <div class="chart-frame"><canvas id="historyTemperatureChart" aria-label="Compressed temperature history graph"></canvas></div>
       </article>
 
       <article class="chart-card card">
         <div class="chart-heading">
-          <div>
-            <h2>Humidity — up to 48 hours</h2>
-            <p>One-minute averages stored in ESP32 RAM</p>
-          </div>
-          <div class="chart-latest">
-            Latest
-            <strong><span id="humidityChartLatest">--.-</span> %</strong>
-          </div>
+          <div><h2>Humidity history</h2><p>One-minute averages stored in ESP32 RAM</p></div>
+          <div class="chart-latest">Latest average<strong><span id="historyHumidityLatest">--.-</span> %</strong></div>
         </div>
-        <div class="chart-frame">
-          <canvas id="humidityChart" aria-label="Humidity history graph"></canvas>
-        </div>
+        <div class="chart-frame"><canvas id="historyHumidityChart" aria-label="Compressed humidity history graph"></canvas></div>
       </article>
 
       <article class="chart-card card">
         <div class="chart-heading">
-          <div>
-            <h2>Pressure — up to 48 hours</h2>
-            <p>One-minute averages stored in ESP32 RAM</p>
-          </div>
-          <div class="chart-latest">
-            Latest
-            <strong><span id="pressureChartLatest">----</span> hPa</strong>
-          </div>
+          <div><h2>Pressure history</h2><p>One-minute averages with 0.1 hPa resolution</p></div>
+          <div class="chart-latest">Latest average<strong><span id="historyPressureLatest">----.-</span> hPa</strong></div>
         </div>
-        <div class="chart-frame">
-          <canvas id="pressureChart" aria-label="Air pressure history graph"></canvas>
-        </div>
+        <div class="chart-frame"><canvas id="historyPressureChart" aria-label="Compressed air pressure history graph"></canvas></div>
       </article>
     </section>
 
     <section class="details-grid">
       <article class="detail-card card">
         <p class="eyebrow">DEVICE</p>
-        <div class="detail-row">
-          <span>Sensor status</span>
-          <strong id="sensorStatus">Unknown</strong>
-        </div>
-        <div class="detail-row">
-          <span>Wi-Fi signal</span>
-          <strong id="rssi">-- dBm</strong>
-        </div>
-        <div class="detail-row">
-          <span>Device uptime</span>
-          <strong id="uptime">--</strong>
-        </div>
+        <div class="detail-row"><span>Sensor status</span><strong id="sensorStatus">Unknown</strong></div>
+        <div class="detail-row"><span>Wi-Fi signal</span><strong id="rssi">-- dBm</strong></div>
+        <div class="detail-row"><span>Device uptime</span><strong id="uptime">--</strong></div>
       </article>
 
       <article class="detail-card card">
         <p class="eyebrow">DATA</p>
-        <div class="detail-row">
-          <span>Last live update</span>
-          <strong id="lastUpdate">Waiting for data</strong>
-        </div>
-        <div class="detail-row">
-          <span>Points shown</span>
-          <strong id="pointCount">0</strong>
-        </div>
-        <div class="detail-row">
-          <span>History storage</span>
-          <strong>ESP32 RAM only</strong>
-        </div>
+        <div class="detail-row"><span>Last live update</span><strong id="lastUpdate">Waiting for data</strong></div>
+        <div class="detail-row"><span>Live update interval</span><strong id="liveInterval">About 2 seconds</strong></div>
+        <div class="detail-row"><span>History storage</span><strong>ESP32 RAM only</strong></div>
       </article>
     </section>
 
     <section class="ram-note card">
       <strong>RAM history notice</strong>
       <p>
-        The ESP32 stores up to 48 hours of one-minute averages in RAM. Resetting
-        it, removing power, or uploading firmware clears the stored history.
-        V8 sends history through the same MQTT telemetry topic as the live data,
-        so no separate HiveMQ history-topic permission is required.
+        The ESP32 stores up to 48 hours of one-minute averages in RAM. Resetting it,
+        removing power, or uploading firmware clears the stored history. Hover or tap
+        a graph to inspect an exact point. History zoom applies only to the stored graphs.
       </p>
     </section>
 
-    <footer>
-      Live BME280 readings and RAM history from the ESP32-C3 Super Mini through HiveMQ.
-    </footer>
+    <footer>Live BME280 readings and RAM history from the ESP32-C3 Super Mini through HiveMQ.</footer>
   </main>
 
   <script src="https://unpkg.com/mqtt@5.15.2/dist/mqtt.min.js"></script>
-  <script src="script.js"></script>
+  <script src="script.js?v=9"></script>
 </body>
 </html>
